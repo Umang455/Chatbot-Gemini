@@ -19,12 +19,15 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    Tooltip,
+    Alert,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import LoginIcon from '@mui/icons-material/Login';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import useAuthStore from '@/store/authStore';
 import useChatStore from '@/store/chatStore';
 
@@ -33,8 +36,13 @@ export default function ChatPage() {
     const router = useRouter();
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isPdfProcessing, setIsPdfProcessing] = useState(false);
     const [saveDialogOpen, setSaveDialogOpen] = useState(false);
     const [chatTitle, setChatTitle] = useState('');
+    const [uploadedPdf, setUploadedPdf] = useState(null);
+    const [pdfText, setPdfText] = useState('');
+    const [error, setError] = useState('');
+    const fileInputRef = useRef(null);
     const messagesEndRef = useRef(null);
 
     const { user, setUser } = useAuthStore();
@@ -54,6 +62,48 @@ export default function ChatPage() {
         scrollToBottom();
     }, [messages]);
 
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        setError('');
+        setUploadedPdf(file);
+        setIsPdfProcessing(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            const response = await fetch('/api/chat/process-pdf', {
+                method: 'POST',
+                body: formData,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to process PDF');
+            }
+
+            if (!data.text) {
+                throw new Error('No text could be extracted from the PDF');
+            }
+
+            setPdfText(data.text);
+            addMessage({
+                role: 'assistant',
+                content: `PDF "${data.filename}" (${data.pages} pages) processed successfully. You can now ask questions about it.`
+            });
+        } catch (error) {
+            console.error('PDF processing error:', error);
+            setError('Error processing PDF: ' + error.message);
+            setUploadedPdf(null);
+            setPdfText('');
+        } finally {
+            setIsPdfProcessing(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!input.trim()) return;
@@ -69,7 +119,10 @@ export default function ChatPage() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: userMessage }),
+                body: JSON.stringify({
+                    message: userMessage,
+                    pdfText: pdfText,
+                }),
             });
 
             const data = await response.json();
@@ -209,8 +262,26 @@ export default function ChatPage() {
                 }}
             >
                 <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6">Chat with Gemini</Typography>
+                    <Typography variant="h6">
+                        {uploadedPdf ? `Chat with Gemini - ${uploadedPdf.name}` : 'Chat with Gemini'}
+                    </Typography>
                     <Box>
+                        <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={handleFileUpload}
+                            style={{ display: 'none' }}
+                            ref={fileInputRef}
+                        />
+                        <Tooltip title={uploadedPdf ? "Upload different PDF" : "Upload PDF"}>
+                            <IconButton
+                                onClick={() => fileInputRef.current?.click()}
+                                color="primary"
+                                disabled={isPdfProcessing}
+                            >
+                                <UploadFileIcon />
+                            </IconButton>
+                        </Tooltip>
                         {messages.length > 0 && (
                             <>
                                 <IconButton
@@ -231,6 +302,21 @@ export default function ChatPage() {
                         )}
                     </Box>
                 </Box>
+
+                {error && (
+                    <Alert severity="error" sx={{ m: 2 }} onClose={() => setError('')}>
+                        {error}
+                    </Alert>
+                )}
+
+                {isPdfProcessing && (
+                    <Box sx={{ p: 2, textAlign: 'center' }}>
+                        <CircularProgress size={24} sx={{ mr: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
+                            Processing PDF... Please wait
+                        </Typography>
+                    </Box>
+                )}
 
                 <List
                     sx={{
@@ -293,10 +379,10 @@ export default function ChatPage() {
                         fullWidth
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Type your message..."
+                        placeholder={uploadedPdf ? "Ask a question about the PDF..." : "Type your message..."}
                         variant="outlined"
                         size="small"
-                        disabled={isLoading}
+                        disabled={isLoading || isPdfProcessing}
                         multiline
                         maxRows={4}
                     />
@@ -304,7 +390,7 @@ export default function ChatPage() {
                         type="submit"
                         variant="contained"
                         endIcon={<SendIcon />}
-                        disabled={isLoading || !input.trim()}
+                        disabled={isLoading || !input.trim() || isPdfProcessing}
                     >
                         Send
                     </Button>
