@@ -137,7 +137,7 @@ export default function LoginPage() {
                         </Button>
                         <Box sx={{ textAlign: 'center' }}>
                             <Typography variant="body2" sx={{ mb: 1 }}>
-                                Don't have an account?
+                                Dont have an account?
                             </Typography>
                             <Button
                                 variant="outlined"
