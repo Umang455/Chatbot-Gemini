@@ -92,7 +92,7 @@ export default function ChatPage() {
             setPdfText(data.text);
             addMessage({
                 role: 'assistant',
-                content: `PDF "${data.filename}" (${data.pages} pages) processed successfully. You can now ask questions about it.`
+                content: `PDF &quot;${data.filename}&quot; (${data.pages} pages) processed successfully. You can now ask questions about it.`
             });
         } catch (error) {
             console.error('PDF processing error:', error);
@@ -135,7 +135,7 @@ export default function ChatPage() {
         } catch (error) {
             addMessage({
                 role: 'assistant',
-                content: 'Sorry, I encountered an error. Please try again.'
+                content: "Sorry, I encountered an error. Please try again."
             });
         } finally {
             setIsLoading(false);
@@ -171,13 +171,13 @@ export default function ChatPage() {
             clearMessages();
 
             // Show success message
-            alert('Chat saved successfully!');
+            alert("Chat saved successfully!");
 
             // Redirect to home page
             router.push('/');
         } catch (error) {
             console.error('Error saving chat:', error);
-            alert('Failed to save chat: ' + error.message);
+            alert("Failed to save chat: " + error.message);
         }
     };
 
